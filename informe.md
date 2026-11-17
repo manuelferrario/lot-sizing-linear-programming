@@ -12,17 +12,13 @@ El enunciado pide planificar, mes a mes y durante un horizonte de 24 meses (ener
 de cubrir una demanda estimada minimizando el costo total de fabricación. La
 planificación está sujeta a capacidad de producción, a que la fabricación se hace
 en lotes de 10 unidades, a una capacidad de depósito compartida entre productos y a
-que no hay stock inicial. A partir de esta formulación base, el trabajo pide
-analizar cuatro variantes: un límite de producción mensual conjunto, la posibilidad
-de tercerizar producción, un mínimo de pedido al tercerizar, y la mínima capacidad
-de depósito que mantiene el problema factible.
+que no hay stock inicial.
 
 Resolvemos cada punto planteando un modelo de programación lineal entera mixta
-(PLEM) en **ZIMPL** y resolviéndolo con el solver **SCIP**. Cada inciso agrega
+en **ZIMPL** y resolviéndolo con el solver **SCIP**. Cada inciso agrega
 variables y/o restricciones al modelo anterior, por lo que preferimos mantener un
-archivo `.zpl` por inciso (`main1.zpl` … `main5.zpl`) en lugar de parametrizar un
-único archivo: así cada entrega queda autocontenida y es más fácil de leer y de
-corregir. Todos comparten los mismos datos de demanda (`demanda.csv`).
+archivo `.zpl` por inciso (`main1.zpl` hasta `main5.zpl`) en lugar de parametrizar un
+único archivo. Todos comparten los mismos datos de demanda (`demanda.csv`).
 
 ---
 
@@ -53,8 +49,7 @@ datos quede documentado y sea auditable, y no sea necesario confiar en un
 
 ## 3. Análisis de la demanda
 
-Antes de modelar conviene mirar los datos. La demanda tiene una marcada
-estacionalidad **anual** (el patrón de los 12 meses de 2027 se repite idéntico en
+La demanda tiene una marcada estacionalidad **anual** (el patrón de los 12 meses de 2027 se repite idéntico en
 2028):
 
 | | Ene | Feb | Mar | Abr | May | Jun | Jul | Ago | Sep | Oct | Nov | Dic |
@@ -122,11 +117,14 @@ $$x_{t,p} = 10\, y_{t,p} \qquad \forall t \in T,\, p \in P $$
 
 $$s_{0,p} = 0 \qquad \forall p \in P $$
 
-*(sin stock inicial)*
+*(sin stock inicial: stock inicial = 0)*
 
 $$s_{t,p} = s_{t-1,p} + x_{t,p} - d_{t,p} \qquad \forall t \in T,\, p \in P $$
 
-*(balance de stock)*
+*(balance de stock: define el stock de cada mes y asegura que se cubra la demanda)*
+
+Definimos $s$ también para $t = 0$ para que el balance del primer mes pueda usar
+$s_{0,p}$, que vale 0 por la restricción anterior.
 
 $$\sum_{p \in P} s_{t,p} \leq 900 \qquad \forall t \in T $$
 
@@ -150,7 +148,10 @@ supuestos que adoptamos, y por qué:
   nativo), introducimos la variable auxiliar entera $y_{t,p} \in [0,12]$ y la
   restricción $x_{t,p} = 10\,y_{t,p}$. Es equivalente, pero dejar a $x$ continua
   simplifica referenciarla en el resto de las restricciones y en la función
-  objetivo.
+  objetivo. En un primer momento quisimos escribir la restricción con módulo
+  (`x[t,p] mod 10 == 0`), pero esa operación sobre una variable no es lineal y
+  ZIMPL no la acepta en una restricción; la variable entera auxiliar es la forma
+  lineal de expresar lo mismo.
 - **Capacidad de depósito agregada, no por producto.** El enunciado dice que la
   capacidad de 900 unidades es "entre todos los productos", por lo que la
   restricción suma el stock de los cinco productos en cada mes
@@ -197,6 +198,8 @@ respetando la capacidad de depósito y de producción, simplemente adelantando
 producción en los meses de baja demanda para cubrir los picos de mitad de año. El
 modelo base es, entonces, factible y óptimo sin necesidad de producir de más.
 
+![Salida de SCIP para el inciso 1](capturas/inciso1.png)
+
 ### 6.2. Inciso 2 — Límite de producción total de 300 u./mes (`main2.zpl`)
 
 Se agrega una única restricción al modelo base, que limita la producción
@@ -214,6 +217,8 @@ producción —sin importar cómo se distribuya el stock— puede cubrir ese dé
 420 unidades, porque no se permite *backlog*. El déficit acumulado nunca se
 recupera: a diciembre de 2028 (mes 24) sigue siendo de 650 unidades. SCIP confirma
 esto devolviendo estado de infactibilidad (`infeasible`) al resolver `main2.zpl`.
+
+![Salida de SCIP para el inciso 2](capturas/inciso2.png)
 
 ### 6.3. Inciso 3 — Tercerización de hasta 200 u./mes a \$540 (`main3.zpl`)
 
@@ -243,6 +248,8 @@ tercerizándose (al costo mayor de \$540) y el resto se produce internamente; es
 combinación es la que minimiza el costo total sujeto al tope conjunto de 300
 u./mes de producción propia.
 
+![Salida de SCIP para el inciso 3](capturas/inciso3.png)
+
 ### 6.4. Inciso 4 — Mínimo de 20 u. por pedido tercerizado (`main4.zpl`)
 
 Se agrega la variable binaria $w_{t,p}$ (vale 1 si se tercerizó el producto $p$ en
@@ -268,10 +275,12 @@ el problema del inciso 3 tiene **múltiples soluciones óptimas alternativas** c
 el mismo costo: la solución que encontró SCIP para `main3.zpl` incluye 10 pedidos
 tercerizados de menos de 20 unidades (por ejemplo, 5 unidades de $E$ en el mes 1),
 pero existe otra combinación de lotes —con exactamente el mismo costo total—
-donde cada pedido tercerizado que se realiza es de 20 unidades o más. SCIP
-encuentra directamente esa segunda solución al resolver `main4.zpl`, por lo que
-la restricción adicional termina siendo redundante en el óptimo: no encarece la
-planificación, solo selecciona una de las soluciones óptimas que ya existían.
+donde cada pedido tercerizado que se realiza es de 20 unidades o más. Al
+resolver `main4.zpl`, SCIP encuentra el mismo óptimo: la restricción no cambia
+la resolución del problema en términos de costo, solo selecciona una de las
+soluciones óptimas que ya existían.
+
+![Salida de SCIP para el inciso 4](capturas/inciso4.png)
 
 ### 6.5. Inciso 5 — Mínima capacidad de depósito factible (`main5.zpl`)
 
@@ -288,6 +297,10 @@ $$\sum_{p \in P} s_{t,p} \leq K \qquad \forall t \in T $$
 
 *(capacidad de depósito, variable)*
 
+Convertir una capacidad en variable de decisión es una idea que tomamos de los
+modelos de *facility location* vistos en clase, donde la capacidad (o la
+apertura) de una instalación es parte de lo que decide el modelo.
+
 Esto es preferible a la búsqueda binaria manual porque **ya es en sí mismo un
 problema de optimización lineal entera mixta**: en una sola resolución, SCIP
 encuentra el valor de $K$ más chico compatible con todas las demás restricciones,
@@ -298,9 +311,12 @@ sucesivas.
 **Resultado:** $K_{\min} = 705$ unidades. Es decir, manteniendo las reglas de
 producción, tercerización y mínimo de pedido del inciso 4, el depósito podría
 reducirse de 900 a 705 unidades (un 21,7% menos) sin que el problema deje de ser
-factible ni cambie la estructura de costos, ya que el objetivo de este modelo es
-exclusivamente encontrar la mínima capacidad y no vuelve a minimizar el costo de
-producción.
+factible. Hay que tener en cuenta que el objetivo de este modelo es
+exclusivamente encontrar la mínima capacidad: no minimiza el costo de
+producción, así que este resultado no dice cuánto costaría el plan con un
+depósito de 705 unidades.
+
+![Salida de SCIP para el inciso 5](capturas/inciso5.png)
 
 ---
 
@@ -318,10 +334,10 @@ producción.
 
 ## 8. Cómo ejecutar los modelos
 
-**Requisitos:** [SCIP](https://scipopt.org/) compilado con soporte para leer
-modelos **ZIMPL** (`.zpl`) directamente. El paquete de Homebrew (`brew install
-scip`) no incluye ese lector, así que recomendamos instalarlo con conda/mamba
-desde `conda-forge`, que sí lo trae:
+**Requisitos:** [SCIP](https://scipopt.org/) con soporte para leer modelos
+**ZIMPL** (`.zpl`) directamente. La SCIP Optimization Suite (por ejemplo, el
+instalador para Windows) ya incluye ZIMPL. En macOS, el paquete de Homebrew no
+trae ese lector; ahí se puede instalar desde `conda-forge`:
 
 ```bash
 conda create -n tp2scip -c conda-forge scip zimpl
@@ -339,7 +355,7 @@ conda activate tp2scip
 `demanda.csv` presente):
 
 ```bash
-printf 'read mainN.zpl\noptimize\ndisplay solution\nquit\n' | scip
+scip -c "read mainN.zpl optimize display solution quit"
 ```
 
 reemplazando `mainN.zpl` por el archivo del inciso que se quiera correr. SCIP
@@ -362,12 +378,12 @@ ya no alcanza para cubrir la demanda acumulada, y ningún plan de producción
 La tercerización (inciso 3) resuelve esa infactibilidad al costo de un 7,7% más
 que el óptimo teórico, tercerizando 1.320 de las 7.850 unidades totales. Exigir
 un mínimo de 20 unidades por pedido tercerizado (inciso 4) no encarece la
-planificación: el problema tiene múltiples soluciones óptimas con el mismo
-costo, y alcanza con elegir la que ya respeta esa cota mínima, en vez de alterar
-la cantidad total tercerizada.
+planificación: SCIP encuentra el mismo óptimo, porque el problema tiene múltiples
+soluciones óptimas con el mismo costo y alcanza con elegir la que ya respeta esa
+cota mínima.
 
 Finalmente, la capacidad de depósito de 900 unidades que fija el enunciado resulta
 holgada: planteando la capacidad como variable a minimizar (inciso 5), en lugar de
-probarla "a mano" con búsqueda binaria, encontramos que 705 unidades ya alcanzan
-para sostener el mismo plan de producción y tercerización, una reducción del
-21,7% en el espacio de depósito necesario sin tocar los costos de fabricación.
+probarla "a mano" con búsqueda binaria, encontramos que con 705 unidades el
+problema sigue siendo factible con las mismas reglas de producción y
+tercerización, una reducción del 21,7% en el espacio de depósito necesario.
