@@ -1,9 +1,22 @@
-# TP2 — Aplicaciones Computacionales en Negocios
-## Modelo de *lot sizing* para planificación de producción
+<div class="caratula" align="center">
 
-**Grupo:** Felipe Vilaseca Navajas y Manuel Ferrario
+<img src="img/logo_ditella.png" alt="Universidad Torcuato Di Tella" width="220">
 
----
+<p class="materia">Aplicaciones Computacionales en Negocios</p>
+
+<h1 class="titulo">Trabajo Práctico 2</h1>
+
+<p class="subtitulo">Modelo de <em>lot sizing</em> para planificación de producción</p>
+
+<p class="dato"><strong>Grupo:</strong><br>Felipe Vilaseca Navajas<br>Manuel Ferrario</p>
+
+<p class="dato"><strong>Profesor:</strong> Javier Marenco</p>
+
+<p class="dato">2do semestre 2026</p>
+
+</div>
+
+<div class="salto"></div>
 
 ## 1. Introducción
 
