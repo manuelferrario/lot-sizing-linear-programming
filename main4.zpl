@@ -1,0 +1,58 @@
+# 4 -> Mínimo 20 unidades tercerizadas por producto. (Si se terceriza).
+
+# ------ (1) Definción de variables:
+
+# Lista de meses
+set T := { 1 .. 24 };
+
+# Productos que hay que producir en la fabrica
+set P := { "A", "B", "C", "D", "E" };
+
+# Demanda por mes (1 = Ene/27 ... 24 = Dic/28) y producto
+param d[T * P] := read "demanda.csv" as "<1n, 2s> 3n" skip 1;
+
+# Variable de producción por <t,p>
+var x[T * P];
+
+# Costo de producir cualquier producto
+param costo := 370;
+
+# Variable de stock
+var s[{0 .. 24} * P] >= 0; # El stock necesita un valor en t = 0.
+
+# Variable para lotes de 10
+var y[T * P] integer >= 0 <= 12;  
+
+# Variable para producción tercerizada
+var z[T * P] integer >= 0; 
+
+# Costo de tercerizar unidad
+param costo_terce := 540; 
+
+# Vale 1 si se terceriza el producto p en el mes t, 0 si no
+var w[T * P] binary; # NUEVO
+
+
+# ------ (2) Función Objetivo:
+
+minimize costo_produccion: sum <t,p> in T * P: (costo * x[t,p] + costo_terce * z[t,p]); 
+
+# ------ (3) Restricciones:
+
+subto prod_max_producto: forall <t,p> in T * P: 0 <= x[t,p] <= 120;
+
+subto lotes_10: forall <t,p> in T * P: x[t,p] == 10 * y[t,p];
+
+subto stock_inicial: forall <p> in P: s[0,p] == 0;
+
+subto stock: forall <t,p> in T * P: s[t,p] == s[t-1,p] + x[t,p] + z[t,p] - d[t,p]; 
+
+subto max_stock: forall <t> in T: sum <p> in P: s[t,p] <= 900;
+
+subto prod_maxima_total: forall <t> in T: sum <p> in P: x[t,p] <= 300; 
+
+subto prod_max_tercerizado: forall <t> in T: sum <p> in P: z[t,p] <= 200;
+
+subto terce_min: forall <t,p> in T * P: z[t,p] >= 20 * w[t,p]; # NUEVO
+
+subto terce_activa: forall <t,p> in T * P: z[t,p] <= 200 * w[t,p]; # NUEVO
