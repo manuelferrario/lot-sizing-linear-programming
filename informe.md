@@ -35,28 +35,13 @@ archivo `.zpl` por inciso (`main1.zpl` hasta `main5.zpl`) en lugar de parametriz
 
 ---
 
-## 2. Datos: por qué y cómo transformamos el Excel
+## 2. Datos
 
-El archivo original `tp2.2026.xlsx` tiene la demanda en **formato ancho**: una fila
-por mes y una columna por producto (igual a la Tabla 1 del enunciado).
-
-ZIMPL puede leer parámetros indexados desde un archivo con su directiva `read`,
-pero necesita un **formato largo** (*tidy*): una fila por combinación
-$(\text{mes}, \text{producto})$ con el valor correspondiente, de forma de poder
-indexar el parámetro directamente con `read "demanda.csv" as "<1n,2s> 3n" skip 1`
-(columna 1 = mes como número, columna 2 = producto como string, columna 3 =
-demanda como número).
-
-Por eso convertimos la tabla ancha del Excel a un archivo `demanda.csv` con las
-columnas `mes,producto,demanda`, numerando los meses del 1 (enero 2027) al 24
-(diciembre 2028) en el orden en que aparecen en la hoja. Escribimos este paso como
-un script reproducible, `generar_demanda_csv.py`, que lee directamente el XML
-interno del `.xlsx` (sin depender de librerías externas como `pandas` u
-`openpyxl`, que pueden no estar instaladas en la máquina que corrige el TP) y
-reconstruye `demanda.csv` fila por fila. Lo incluimos entre los archivos
-entregados junto con el `.xlsx` original, de modo que el proceso de preparación de
-datos quede documentado y sea auditable, y no sea necesario confiar en un
-`demanda.csv` editado a mano.
+El Excel original (`tp2.2026.xlsx`) tiene la demanda en formato ancho: una fila
+por mes y una columna por producto. ZIMPL necesita leerla en formato largo, una
+fila por combinación (mes, producto) con su valor de demanda. Convertimos la
+tabla a `demanda.csv`, con columnas `mes,producto,demanda`, numerando los meses
+del 1 (enero 2027) al 24 (diciembre 2028).
 
 ---
 
@@ -153,46 +138,18 @@ venta: el modelo es infactible si no alcanza a cubrirla.
 
 ## 5. Supuestos de modelado
 
-El enunciado no fija todas las decisiones de implementación; estos son los
-supuestos que adoptamos, y por qué:
-
-- **$x_{t,p}$ continua, $y_{t,p}$ entera.** En vez de declarar directamente
-  $x_{t,p}$ como entera múltiplo de 10 (ZIMPL no tiene un tipo "múltiplo de 10"
-  nativo), introducimos la variable auxiliar entera $y_{t,p} \in [0,12]$ y la
-  restricción $x_{t,p} = 10\,y_{t,p}$. Es equivalente, pero dejar a $x$ continua
-  simplifica referenciarla en el resto de las restricciones y en la función
-  objetivo. En un primer momento quisimos escribir la restricción con módulo
-  (`x[t,p] mod 10 == 0`), pero esa operación sobre una variable no es lineal y
-  ZIMPL no la acepta en una restricción; la variable entera auxiliar es la forma
-  lineal de expresar lo mismo.
-- **Capacidad de depósito agregada, no por producto.** El enunciado dice que la
-  capacidad de 900 unidades es "entre todos los productos", por lo que la
-  restricción suma el stock de los cinco productos en cada mes
-  ($\sum_p s_{t,p} \leq 900$) en lugar de limitar cada $s_{t,p}$ por separado.
-- **Cumplimiento exacto de la demanda, sin faltantes ni sobrantes forzados.** La
-  igualdad de balance de stock junto con $s_{t,p}\geq 0$ garantiza que toda la
-  demanda se cubre en el mes que corresponde; no permitimos *backlog* (demanda
-  insatisfecha que se arrastra) porque el enunciado no lo menciona como opción.
-  No exigimos $s_{24,p}=0$: si al optimizador le conviene terminar con stock
-  remanente (nunca le conviene, porque produciría de más sin necesidad, así que
-  en el óptimo esto no ocurre) lo permitimos, en vez de forzarlo.
-- **Tercerización como variable entera, no múltiplo de 10 (incisos 3, 4 y 5).** El
-  enunciado solo exige lotes de 10 para la producción propia (punto 2 de la
-  consigna); para la tercerización no se menciona esa restricción, así que
-  dejamos a $z_{t,p}$ como entera libre (no forzada a múltiplos de 10).
-- **Big-M de la tercerización mínima (inciso 4).** Para modelar "si se terceriza,
-  se piden al menos 20 unidades" usamos la variable binaria $w_{t,p}$ y las
-  restricciones $20\,w_{t,p} \leq z_{t,p} \leq M\,w_{t,p}$. Como cota $M$ usamos
-  200, que es el límite mensual total de tercerización (ningún $z_{t,p}$ individual
-  puede superar esa cota de todas formas), así que es una cota válida y a la vez
-  ajustada.
-- **Minimizar la capacidad de depósito como variable (inciso 5).** En lugar de
-  buscar $K$ por búsqueda binaria (resolver el modelo repetidas veces probando
-  distintas capacidades), convertimos a $K$ en variable de decisión continua no
-  negativa, reemplazamos la cota fija de 900 por $\sum_p s_{t,p} \leq K$ para todo
-  $t$, y cambiamos el objetivo a $\min K$. El óptimo de este modelo es exactamente
-  la mínima capacidad de depósito que mantiene el problema factible, en una sola
-  resolución.
+- $x_{t,p}$ es continua y $y_{t,p}$ entera, con $x_{t,p} = 10\,y_{t,p}$, para
+  forzar que la producción sea múltiplo de 10.
+- La capacidad de depósito (900) es agregada entre los cinco productos:
+  $\sum_p s_{t,p} \leq 900$.
+- Toda la demanda se cubre en el mes que corresponde, sin excepciones; no
+  exigimos que el stock final ($t=24$) sea 0.
+- La tercerización ($z_{t,p}$) es entera, pero no está restringida a múltiplos
+  de 10.
+- Para "si se terceriza, mínimo 20 unidades" (inciso 4) usamos la binaria
+  $w_{t,p}$ con $20\,w_{t,p} \leq z_{t,p} \leq 200\,w_{t,p}$.
+- En el inciso 5, la capacidad de depósito pasa a ser una variable $K$ a
+  minimizar, en lugar de buscarla a mano probando distintos valores.
 
 ---
 
@@ -227,8 +184,9 @@ Alcanza con mirar la demanda acumulada: hasta agosto (mes 8) la demanda total
 acumulada es de 2.820 unidades, mientras que la capacidad de producción acumulada
 con el límite de 300 u./mes es de apenas 2.400 unidades. Ningún plan de
 producción —sin importar cómo se distribuya el stock— puede cubrir ese déficit de
-420 unidades, porque no se permite *backlog*. El déficit acumulado nunca se
-recupera: a diciembre de 2028 (mes 24) sigue siendo de 650 unidades. SCIP confirma
+420 unidades, porque toda la demanda debe cubrirse en su propio mes. El déficit
+acumulado nunca se recupera: a diciembre de 2028 (mes 24) sigue siendo de 650
+unidades. SCIP confirma
 esto devolviendo estado de infactibilidad (`infeasible`) al resolver `main2.zpl`.
 
 ![Salida de SCIP para el inciso 2](capturas/inciso2.png)
@@ -360,7 +318,6 @@ conda activate tp2scip
 **Archivos entregados:**
 
 - `tp2.2026.xlsx`: demanda original, tal como la provee la cátedra.
-- `generar_demanda_csv.py`: script que genera `demanda.csv` a partir del `.xlsx`.
 - `demanda.csv`: demanda en formato largo, como la leen los modelos ZIMPL.
 - `main1.zpl` … `main5.zpl`: un modelo ZIMPL por inciso.
 
