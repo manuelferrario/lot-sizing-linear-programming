@@ -28,10 +28,18 @@ en lotes de 10 unidades, a una capacidad de depósito compartida entre productos
 que no hay stock inicial.
 
 Resolvemos cada punto planteando un modelo de programación lineal entera mixta
-en **ZIMPL** y resolviéndolo con el solver **SCIP**. Cada inciso agrega
-variables y/o restricciones al modelo anterior, por lo que preferimos mantener un
-archivo `.zpl` por inciso (`main1.zpl` hasta `main5.zpl`) en lugar de parametrizar un
-único archivo. Todos comparten los mismos datos de demanda (`demanda.csv`).
+en **ZIMPL** y resolviéndolo con el solver **SCIP**. Tomamos dos decisiones de
+organización:
+
+- **Un archivo `.zpl` por inciso** (`main1.zpl` hasta `main5.zpl`). Cada inciso
+  agrega variables, restricciones o cambia la función objetivo respecto del
+  anterior, así que preferimos que cada modelo quede completo y se pueda correr
+  por separado, en lugar de parametrizar un único archivo con opciones.
+- **Los datos en `demanda.csv`, en formato largo.** El Excel de la cátedra tiene
+  una columna por producto, y así ZIMPL tendría que leer cada producto por
+  separado y combinarlos con condicionales. Con una fila por (mes, producto), la
+  demanda se carga en una sola línea, `read "demanda.csv" as "<1n,2s> 3n"`, y
+  todos los modelos comparten el mismo archivo.
 
 ---
 
@@ -303,38 +311,7 @@ depósito de 705 unidades.
 
 ---
 
-## 8. Cómo ejecutar los modelos
-
-**Requisitos:** [SCIP](https://scipopt.org/) con soporte para leer modelos
-**ZIMPL** (`.zpl`) directamente. La SCIP Optimization Suite (por ejemplo, el
-instalador para Windows) ya incluye ZIMPL. En macOS, el paquete de Homebrew no
-trae ese lector; ahí se puede instalar desde `conda-forge`:
-
-```bash
-conda create -n tp2scip -c conda-forge scip zimpl
-conda activate tp2scip
-```
-
-**Archivos entregados:**
-
-- `tp2.2026.xlsx`: demanda original, tal como la provee la cátedra.
-- `demanda.csv`: demanda en formato largo, como la leen los modelos ZIMPL.
-- `main1.zpl` … `main5.zpl`: un modelo ZIMPL por inciso.
-
-**Para correr cualquier inciso** (parado en la carpeta del proyecto, con
-`demanda.csv` presente):
-
-```bash
-scip -c "read mainN.zpl optimize display solution quit"
-```
-
-reemplazando `mainN.zpl` por el archivo del inciso que se quiera correr. SCIP
-imprime el estado de la resolución (óptimo / infactible), el valor objetivo
-(`objective value: ...`) y, con `display solution`, el valor de cada variable.
-
----
-
-## 9. Conclusión
+## 8. Conclusión
 
 El modelo base (inciso 1) logra cumplir toda la demanda del horizonte produciendo
 exactamente lo necesario, sin desperdicio: el costo óptimo de \$2.904.500
